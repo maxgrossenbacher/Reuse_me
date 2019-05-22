@@ -1,6 +1,47 @@
 import numpy as np
 import pandas as pd
 
+def fuzzy_accuracy(actual, predictions, std):
+    fuzzy_accuracy = pd.concat([actual, std], axis=1)
+    fuzzy_accuracy = pd.concat([fuzzy_accuracy.reset_index(), pd.Series(predictions)], axis=1)
+    fuzzy_accuracy.drop('index', axis=1, inplace=True)
+    fuzzy_accuracy.rename(columns = {fuzzy_accuracy.columns[0]: "Yield",
+                                    fuzzy_accuracy.columns[1]: "Yield std",
+                                    fuzzy_accuracy.columns[2]: "Predicted Yield"}, inplace=True)
+
+
+    fuzzy_accuracy['lower_bound'] = fuzzy_accuracy['Yield'] - fuzzy_accuracy['Yield std']
+    fuzzy_accuracy['upper_bound'] = fuzzy_accuracy['Yield'] + fuzzy_accuracy['Yield std']
+
+    fuzzy_accuracy['within_std'] = (fuzzy_accuracy['Predicted Yield'] > fuzzy_accuracy['lower_bound']) & \
+                            (fuzzy_accuracy['Predicted Yield'] < fuzzy_accuracy['upper_bound'])
+    fuzzy_accuracy['within_2std'] = (fuzzy_accuracy['Predicted Yield'] > fuzzy_accuracy['lower_bound']*2) & \
+                            (fuzzy_accuracy['Predicted Yield'] < fuzzy_accuracy['upper_bound']*2)
+
+    def which_std(row):
+        if row['within_std'] == True:
+            return 0
+        elif row['within_2std'] == True:
+            return 1
+        else:
+            return 2
+    fuzzy_accuracy['which_std'] = fuzzy_accuracy.apply(which_std, axis=1)
+
+    accuracy = (fuzzy_accuracy['within_std'] == True).sum() / fuzzy_accuracy.shape[0]
+    print('Accuracy Score: {}%'.format(accuracy*100))
+    return accuracy, fuzzy_accuracy
+
+def mean_absolute_precentage_error(actual, preds):
+    '''
+    DESC: Function to calculate Mean Absolute Precentage Error (MAPE)
+    INPUT: actual(np.array), preds(np.array)
+    -----
+    OUTPUT: MAPE
+    '''
+    import numpy as np
+    y_true, y_pred = np.array(actual), np.array(preds)
+    return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+
 def mapk(actual, predicted, k=5):
     """
     Computes the mean average precision at k.
