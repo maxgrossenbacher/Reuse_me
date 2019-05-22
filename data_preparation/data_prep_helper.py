@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+from sklearn.model_selection import train_test_split
+import scipy.stats as scs
 
 def add_train_validation_split(df, split_by_grouping=[], validation_name='split', validation_size=0.25, test_size=0.1, random=42):
     """
@@ -31,7 +33,6 @@ def add_train_validation_split(df, split_by_grouping=[], validation_name='split'
     if split_randomly:
         #write_log('splitting training and validation set randomly',legend)
         # split by group
-        from sklearn.model_selection import train_test_split
 
         if split_by_grouping:
             df_split = df[split_by_grouping].groupby(split_by_grouping).aggregate('count').reset_index()
@@ -76,6 +77,45 @@ def add_train_validation_split(df, split_by_grouping=[], validation_name='split'
 
                 # concat it back
                 df = pd.concat([df, df_testsplit])
-
-
     return df
+
+def run_ttest(feature, condition):
+    '''
+    DOCUMENTATION: http://carmenlai.com/2016/11/12/user-churn-prediction-a-machine-learning-workflow
+    Function to run t-test for a given column from a dataframe.
+    
+    INPUT feature (pandas series): column of interest
+    INPUT condition (boolean): condition to t-test by
+    OUTPUT: 
+    '''
+    ttest = scs.ttest_ind(feature[condition], feature[-condition])
+    print '===== T-test for Difference in Means ====='
+    print 'User count: {} vs. {}'.format(len(feature[condition]), len(feature[-condition]))
+    print 'Mean comparison: {} vs. {}'.format(feature[condition].mean(), feature[-condition].mean())
+    print 'T statistic: {}'.format(ttest.statistic, 4)
+    print 'p-value: {}'.format(ttest.pvalue)
+    pass
+
+def add_binned_ratings(df, old_col, new_col):
+    '''
+    Add column for binned ratings.
+    
+    INPUT:
+    - df (full dataframe)
+    - old_col (str): column name of average ratings
+    - new_col (str): new column name for binned average ratings
+    OUTPUT:
+    - new dataframe
+
+    EX:
+    df = add_binned_ratings(df, 'avg_rating_by_driver', 'bin_avg_rating_by_driver')
+    df = add_binned_ratings(df, 'avg_rating_of_driver', 'bin_avg_rating_of_driver')
+    # Delete previous rating columns
+    df.drop(['avg_rating_by_driver', 'avg_rating_of_driver'], axis=1, inplace=True)
+    '''
+    df[new_col] = pd.cut(df[old_col].copy(), bins=[0., 3.99, 4.99, 5],
+                            include_lowest=True, right=True)
+    df[new_col].cat.add_categories('Missing', inplace=True)
+    df[new_col].fillna('Missing', inplace=True)                        
+    return df
+

@@ -1,7 +1,10 @@
 import numpy as np
 import pandas as pd
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, LabelEncoder, LabelBinarizer
+from sklearn_pandas import DataFrameMapper, cross_val_score
+from sklearn.metrics import roc_auc_score, f1_score, confusion_matrix
+
 
 # Create dataframe mapper in preparation for sklearn modeling, which takes numeric numpy arrays
 # https://pypi.org/project/sklearn-pandas/1.5.0/
