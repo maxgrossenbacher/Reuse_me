@@ -1,13 +1,63 @@
 import numpy as np
 import pandas as pd 
 import matplotlib.pyplot as plt
+import matplotlib.cm as color_map
 import seaborn as sns
 
 plt.style.use('seaborn-darkgrid') # you can custom the style here
 
 from sklearn.learning_curve import learning_curve
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, confusion_matrix, classification_report, precision_recall_fscore_support
+from matplotlib.colors import LogNorm
 
 
+### ROC
+def roc_curve(y_proba, y_test):
+    '''
+    Return the True Positive Rates, False Positive Rates and Thresholds for the
+    ROC curve plot.
+    
+    INPUT y_proba (numpy array): predicted probabilities
+    INPUT y_test (numpy array): true labels
+    OUTPUT (lists): lists of true positive rates, false positive rates, thresholds 
+    '''
+
+    thresholds = np.sort(y_proba)
+
+    tprs = []
+    fprs = []
+
+    num_positive_cases = sum(y_test)
+    num_negative_cases = len(y_test) - num_positive_cases
+
+    for threshold in thresholds:
+        # With this threshold, give the prediction of each instance
+        predicted_positive = y_proba >= threshold
+        # Calculate the number of correctly predicted positive cases
+        true_positives = np.sum(predicted_positive * y_test)
+        # Calculate the number of incorrectly predicted positive cases
+        false_positives = np.sum(predicted_positive) - true_positives
+        # Calculate the True Positive Rate
+        tpr = true_positives / float(num_positive_cases)
+        # Calculate the False Positive Rate
+        fpr = false_positives / float(num_negative_cases)
+
+        fprs.append(fpr)
+        tprs.append(tpr)
+    
+    return tprs, fprs, thresholds.tolist()
+
+def plot_roc_curve(pipeline, y_pred, y_proba, y_test):
+    '''
+    Plot ROC curve with data from function above.
+    '''
+    tpr, fpr, thresholds = roc_curve(y_proba, y_test)
+
+    model_name = pipeline.named_steps['classifier'].__class__.__name__
+    auc = round(roc_auc_score(y_test, y_pred), 3)
+    plt.plot(fpr, tpr, label='{}, AUC: {}'.format(model_name, auc))
+
+### Learning Curves
 def plot_learning_curve(estimator, X, y, ylim=None, cv=None, n_jobs=-1, train_sizes=np.linspace(.1, 1.0, 5), save=False):
 
     plt.figure()
@@ -39,91 +89,7 @@ def plot_learning_curve(estimator, X, y, ylim=None, cv=None, n_jobs=-1, train_si
         plt.savefig('learning_curve')
     return plt
 
-
-def bagging_histogram(truths, preds,cut_off=-1):
-    acc = []
-    pre = []
-    rec = []
-    f1s = []
-    import sklearn as sk
-
-    truth = truths
-    for i in range(len(preds)):
-        if cut_off < 1 and cut_off > 0:
-            pred = preds[i][:,1]
-            prediction =  pred > cut_off
-        else:
-            prediction = preds[i]
-        acc.append(sk.metrics.accuracy_score(prediction,truth[i]))
-        pre.append(sk.metrics.precision_score(prediction,truth[i]))
-        rec.append(sk.metrics.recall_score(prediction,truth[i]))
-        f1s.append(sk.metrics.f1_score(prediction,truth[i]))
-
-    plt.figure(figsize=(8,5))
-    plt.hist(acc, bins = [0. + x*0.025 for x in range(40)], alpha=0.6,label='Accuracy',color='b')
-    plt.axvline(linewidth=4, color='r',x=np.mean(acc), label='Mean(Acc) = '+str(round(np.mean(acc)*1000)/10),c='b')
-
-
-    plt.hist(pre, bins = [0. + x*0.025 for x in range(40)], alpha=0.6,label='Precision',color='y')
-    plt.axvline(linewidth=4,x=np.mean(pre), label='Mean(Pre) = '+str(round(np.mean(pre)*1000)/10),c='y')
-
-    plt.hist(rec, bins = [0. + x*0.025 for x in range(40)], alpha=0.6,label='Recall',color='g')
-    plt.axvline(linewidth=4,x=np.mean(rec), label='Mean(Rec) = '+str(round(np.mean(rec)*1000)/10),c='g')
-
-    plt.hist(f1s, bins = [0. + x*0.025 for x in range(40)], alpha=0.6,label='F1',color='r')
-    plt.axvline(linewidth=4,x=np.mean(f1s), label='Mean(F1) = '+str(round(np.mean(f1s)*1000)/10),c='r')
-
-
-    plt.xlabel('Metric',size=18)
-    plt.ylabel('Count',size=18)
-    plt.legend(fontsize=13, loc='upper left')
-    plt.title('Full Features',size=20)
-
-
-def run_xgbags(df, features, params, iterations=20, class_col='y'):
-    import validation as val
-    import xgboost as xgb
-    import numpy as np
-    from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-    preds = []
-    truths = []
-    for i in range(iterations):
-        print('[model]:',i)
-        if i == 0:
-            # just so that we have the first seed as the one above
-            df = val.add_train_validation_split(df,validation_size=0.05, test_size=0.2, random_seed=42)
-        else:
-            df = val.add_train_validation_split(df,validation_size=0.05, test_size=0.2, random_seed=(i*2)+41)
-        X_train = df[df.split=='Train']
-        X_val  = df[df.split=='Validation']
-        X_test  = df[df.split=='Test']
-
-        eval_set = [(X_train[features].values,X_train[class_col]),
-                        (X_val[features].values,X_val[class_col])]
-
-        xgb_model = xgb.XGBClassifier(**params)
-
-        gbm = xgb_model.fit(X_train[features].values,
-                X_train[class_col].values,
-                eval_metric="logloss",
-                            eval_set=eval_set,
-                            verbose=100,
-                            early_stopping_rounds=50)
-
-
-
-        pred = gbm.predict_proba(X_test[features].values)
-        preds.append(pred)
-        truths.append(X_test[class_col].values)
-
-        pred_int = gbm.predict(X_test[features].values)
-
-        print('   [scores]: argmax accuracy -> ',accuracy_score(X_test[class_col].values, pred_int))
-        print('   [scores]: argmax f1score -> ',f1_score(X_test[class_col].values, pred_int))
-
-    return truths, preds
-
-
+### Confusion Matrix
 def _generate_class_dicts(classes):
     """ Generate class dictionary to ints and reverse dictionary of ints to class.
 
@@ -142,6 +108,36 @@ def _generate_class_dicts(classes):
         counter += 1
     return class_dict, reverse_class_dict
 
+def pandas_classification_report(y_true, y_pred, target_names, save_dir):
+    metrics_summary = precision_recall_fscore_support(
+                    y_true=y_true,
+                    y_pred=y_pred)
+
+    avg = list(precision_recall_fscore_support(
+                    y_true=y_true,
+                    y_pred=y_pred,
+                    average='weighted'))
+
+    metrics_sum_index = ['precision', 'recall', 'f1-score', 'support']
+    class_report_df = pd.DataFrame(
+                list(metrics_summary),columns=target_names,
+                index=metrics_sum_index)
+#             print(class_report_df)
+
+    support = class_report_df.loc['support']
+    total = support.sum()
+    avg[-1] = total
+
+    class_report_df['avg / total'] = avg
+
+    class_report_df = class_report_df.T
+    class_report_df.reset_index(inplace=True)
+    class_report_df.rename(columns={'index':'class'}, inplace=True)
+
+    if save_dir:
+        class_report_df.to_csv(save_dir+'/classification_report.csv', index = False)
+
+    return class_report_df
 
 def plot_confusion_matrix(truth, predicted, labels={}, save_dir='',
                           title='Confusion Matrix', norm=True, suppress_values=False,
@@ -153,18 +149,11 @@ def plot_confusion_matrix(truth, predicted, labels={}, save_dir='',
                          model=''):
     # make confusion matrix from truth and predicted for classes
     # define the confusion matrix
-    from sklearn.metrics import confusion_matrix
-    from sklearn.metrics import classification_report
-    import numpy as np
-
-
-
     # convert to int and generate labels if string
     if isinstance(truth[0],str) and isinstance(predicted[0], str):
         class_dict, labels = _generate_class_dicts(set(truth))
         truth = [class_dict[x] for x in truth]
         predicted = [class_dict[x] for x in predicted]# if x in class_dict]
-
 
     conf_mat = confusion_matrix(truth,predicted)
 
@@ -179,7 +168,7 @@ def plot_confusion_matrix(truth, predicted, labels={}, save_dir='',
     width = np.shape(conf_mat)[1]
     height = np.shape(conf_mat)[0]
 
-    res = plt.imshow(np.array(conf_mat), cmap=plt.cm.summer, interpolation='nearest')
+    res = plt.imshow(np.array(conf_mat), cmap=color_map.summer, interpolation='nearest')
     cb = fig.colorbar(res)
 
     res.set_clim(cmin, cmax)
@@ -208,53 +197,19 @@ def plot_confusion_matrix(truth, predicted, labels={}, save_dir='',
         _ = plt.yticks(range(len(labels)), [labels[l] for l in labels],fontsize=font_size)
         report = classification_report(truth, predicted,target_names=[l for l in labels.values()])
         print(report)
+        
+        # class_df = pandas_classification_report(truth, predicted,target_names=[l for l in labels.values()], save_dir=save_dir)
 
-        # create classification report and save as csv
-        import pandas as pd
-        from sklearn.metrics import precision_recall_fscore_support
-        def pandas_classification_report(y_true, y_pred, target_names, save_dir):
-            metrics_summary = precision_recall_fscore_support(
-                    y_true=y_true,
-                    y_pred=y_pred)
-
-            avg = list(precision_recall_fscore_support(
-                    y_true=y_true,
-                    y_pred=y_pred,
-                    average='weighted'))
-
-            metrics_sum_index = ['precision', 'recall', 'f1-score', 'support']
-            class_report_df = pd.DataFrame(
-                list(metrics_summary),columns=target_names,
-                index=metrics_sum_index)
-#             print(class_report_df)
-
-            support = class_report_df.loc['support']
-            total = support.sum()
-            avg[-1] = total
-
-            class_report_df['avg / total'] = avg
-
-            class_report_df = class_report_df.T
-            class_report_df.reset_index(inplace=True)
-            class_report_df.rename(columns={'index':'class'}, inplace=True)
-
-            if save_dir:
-                class_report_df.to_csv(save_dir+'/classification_report.csv', index = False)
-
-            return class_report_df
-
-        class_df = pandas_classification_report(truth, predicted,target_names=[l for l in labels.values()], save_dir=save_dir)
-
-        # flatten classification report into a single row in a dataframe that can be exported to SQL DB for automated model performance reporting
-        cols = [l for l in class_df.columns if l != 'class']
-        col_names = {}
-        for co in cols:
-            for c in class_df['class'].tolist():
-                col_names[str(c)+'-'+str(co)] = class_df[class_df['class'] == c][co].tolist()[0]
-        flatten_df = pd.DataFrame(col_names,index=[0])
-        flatten_df['model'] = model
-        # save flatten_df in save directory
-        flatten_df.to_csv(save_dir+'/model_results.csv',index=False)
+        # # flatten classification report into a single row in a dataframe that can be exported to SQL DB for automated model performance reporting
+        # cols = [l for l in class_df.columns if l != 'class']
+        # col_names = {}
+        # for co in cols:
+        #     for c in class_df['class'].tolist():
+        #         col_names[str(c)+'-'+str(co)] = class_df[class_df['class'] == c][co].tolist()[0]
+        # flatten_df = pd.DataFrame(col_names,index=[0])
+        # flatten_df['model'] = model
+        # # save flatten_df in save directory
+        # flatten_df.to_csv(save_dir+'/model_results.csv',index=False)
 
     plt.xlabel('Predicted',fontsize=font_size+4)
     plt.ylabel('Truth',fontsize=font_size+4)
@@ -265,7 +220,7 @@ def plot_confusion_matrix(truth, predicted, labels={}, save_dir='',
 
     if save_dir != '':
         plt.savefig(save_dir+'/confusion_matrix.png')
-    return class_df, flatten_df
+    return class_df
 
 
 
@@ -274,17 +229,12 @@ def plot_delta_rpc(truth, predicted, predicted_2, labels={},save_name='', x_min=
         plot recall vs precision vs count
         predicted_2 is new
     """
-    from sklearn.metrics import precision_score
-    from sklearn.metrics import recall_score
-
     # convert to int and generate labels if string
     if isinstance(truth[0],str) and isinstance(predicted[0], str) and isinstance(predicted_2[1], str):
         class_dict, labels = _generate_class_dicts(set(truth))
         truth = [class_dict[x] for x in truth]
         predicted = [class_dict[x] for x in predicted if x in class_dict]
         predicted_2 = [class_dict[x] for x in predicted_2 if x in class_dict]
-
-    import numpy as np
     fig, ax = plt.subplots(figsize=(15,8))
 
     # get counts of the truth set
@@ -309,7 +259,7 @@ def plot_delta_rpc(truth, predicted, predicted_2, labels={},save_name='', x_min=
     print( recall_score(truth, predicted,average=None))
     print(delta_recall)
 
-    from matplotlib.colors import LogNorm
+    
     cax = plt.scatter(
          delta_recall
         , delta_precision
@@ -394,7 +344,7 @@ def plot_delta_matrix(truth, predicted, predicted_2, labels={}, save_name='',
     width = np.shape(delta_conf_mat)[1]
     height = np.shape(delta_conf_mat)[0]
 
-    res = plt.imshow(np.array(delta_conf_mat), cmap=plt.cm.RdYlGn, interpolation='nearest')
+    res = plt.imshow(np.array(delta_conf_mat), cmap=color_map.RdYlGn, interpolation='nearest')
     cb = fig.colorbar(res)
 
     res.set_clim(cmin, cmax)
@@ -479,7 +429,7 @@ def plot_delta_matrix_old(truth, predicted, predicted_2, labels={}, save_name=''
     width = np.shape(delta_conf_mat)[1]
     height = np.shape(delta_conf_mat)[0]
 
-    res = plt.imshow(np.array(delta_conf_mat), cmap=plt.cm.RdYlGn, interpolation='nearest')
+    res = plt.imshow(np.array(delta_conf_mat), cmap=color_map.RdYlGn, interpolation='nearest')
     cb = fig.colorbar(res)
 
     res.set_clim(cmin, cmax)
@@ -524,11 +474,6 @@ def plot_rpc(truth,predicted,labels={},save_name=''):
     """
         plot recall vs precision vs count
     """
-    from sklearn.metrics import precision_score
-    from sklearn.metrics import recall_score
-
-    import numpy as np
-
     # convert to int and generate labels if string
     if isinstance(truth[0],str) and isinstance(predicted[0], str):# and isinstance(predicted_2[1], str):
         class_dict, labels = _generate_class_dicts(set(truth))
@@ -687,7 +632,7 @@ def scatter_plot2d(df,col1,col2,by=False,figsize=(8,6),label=['Canola','Durum','
     if by:
         num_unique = df[by].nunique()
         unique_value = sorted(df[by].unique())
-        cmap = plt.cm.get_cmap('hsv',num_unique+1)
+        cmap = color_map.get_cmap('hsv',num_unique+1)
         colors=[]
         for i in range(num_unique):
             colors.append(cmap(i))
@@ -883,7 +828,7 @@ def scatter_plot2d_colored(df,col1,col2,by=False,figsize=(8,6),label=['Canola','
     if by:
         num_unique = df[by].nunique()
         unique_value = sorted(df[by].unique())
-        cmap = plt.cm.get_cmap('hsv',num_unique+1)
+        cmap = color_map.get_cmap('hsv',num_unique+1)
 
         colors=[]
         for i in range(num_unique):
