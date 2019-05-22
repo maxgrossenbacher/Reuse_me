@@ -7,7 +7,7 @@ import seaborn as sns
 plt.style.use('seaborn-darkgrid') # you can custom the style here
 
 from sklearn.learning_curve import learning_curve
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, confusion_matrix, classification_report, precision_recall_fscore_support
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, confusion_matrix, classification_report, precision_recall_fscore_support, roc_auc_score
 from matplotlib.colors import LogNorm
 
 
@@ -22,7 +22,8 @@ def roc_curve(y_proba, y_test):
     OUTPUT (lists): lists of true positive rates, false positive rates, thresholds 
     '''
 
-    thresholds = np.sort(y_proba)
+    # thresholds = np.sort(y_proba)
+    thresholds = np.linspace(0,1,num=101)
 
     tprs = []
     fprs = []
@@ -47,15 +48,15 @@ def roc_curve(y_proba, y_test):
     
     return tprs, fprs, thresholds.tolist()
 
-def plot_roc_curve(pipeline, y_pred, y_proba, y_test):
+def plot_roc_curve(y_pred, y_proba, y_test):
     '''
     Plot ROC curve with data from function above.
     '''
     tpr, fpr, thresholds = roc_curve(y_proba, y_test)
 
-    model_name = pipeline.named_steps['classifier'].__class__.__name__
     auc = round(roc_auc_score(y_test, y_pred), 3)
-    plt.plot(fpr, tpr, label='{}, AUC: {}'.format(model_name, auc))
+    plt.plot(fpr, tpr, label='AUC: {}'.format(auc))
+###
 
 ### Learning Curves
 def plot_learning_curve(estimator, X, y, ylim=None, cv=None, n_jobs=-1, train_sizes=np.linspace(.1, 1.0, 5), save=False):
@@ -88,6 +89,7 @@ def plot_learning_curve(estimator, X, y, ylim=None, cv=None, n_jobs=-1, train_si
     if save:
         plt.savefig('learning_curve')
     return plt
+###
 
 ### Confusion Matrix
 def _generate_class_dicts(classes):
@@ -221,9 +223,9 @@ def plot_confusion_matrix(truth, predicted, labels={}, save_dir='',
     if save_dir != '':
         plt.savefig(save_dir+'/confusion_matrix.png')
     return class_df
+###
 
-
-
+### delta plots
 def plot_delta_rpc(truth, predicted, predicted_2, labels={},save_name='', x_min=-0.15, x_max=0.15, y_min=-0.15, y_max=0.15):
     """
         plot recall vs precision vs count
@@ -468,8 +470,9 @@ def plot_delta_matrix_old(truth, predicted, predicted_2, labels={}, save_name=''
 
     if save_name != '':
         plt.savefig(save_name)
+###
 
-
+### RPC
 def plot_rpc(truth,predicted,labels={},save_name=''):
     """
         plot recall vs precision vs count
@@ -536,8 +539,9 @@ def plot_rpc(truth,predicted,labels={},save_name=''):
 
     if save_name != '':
         plt.savefig(save_name)
+###
 
-
+### Profit Curve
 def standard_confusion_matrix(y_true, y_pred):
     from sklearn.metrics import confusion_matrix
     '''
@@ -587,8 +591,9 @@ def plot_profit_curve(costbenefit_mat, y_proba, y_test, show=True):
     if show:
         plt.show()
     return thresholds[m_profit_ind]
+###
 
-###############PLOTTING
+### Plot line
 def abline(slope, intercept):
     '''
     DESC: Plot a line from slope and intercept
@@ -601,6 +606,7 @@ def abline(slope, intercept):
     y_vals = intercept + slope * x_vals
     plt.plot(x_vals, y_vals, '--', c='b', label='Perfect Predictions')
 
+### Line of best fit
 def line_of_best_fit(x, y, ci, label,c):
     '''
     DESC: Plot a line of best fit from scatter plot
@@ -659,6 +665,7 @@ def scatter_plot2d(df,col1,col2,by=False,figsize=(8,6),label=['Canola','Durum','
             plt.savefig(save)
     return legend1
 
+### Regression plot
 def actual_v_predictions_plot(actual, preds, title, fig_size=(7,7), ci=80, text=False, color='orange', label_dummies=None, save=False):
     '''
     DESC: Creates and acutal v.s. predictions plot to evaluate regressions
@@ -699,7 +706,7 @@ def actual_v_predictions_plot(actual, preds, title, fig_size=(7,7), ci=80, text=
 
 
 
-############### FEATURE IMPORTANCES
+### FEATURE IMPORTANCES
 def feature_importances_regressor(feature_names, model, n_features, plot=True, save=False):
     '''
     DESC: plots n most important features of XGBRegressor model.
@@ -728,7 +735,7 @@ def feature_importances_regressor(feature_names, model, n_features, plot=True, s
 
 
 
-
+### Correlation Plot
 def correlation_matrix_plot(n_top_features, df, save=False):
     import seaborn as sns
     from matplotlib.colors import ListedColormap
@@ -756,31 +763,7 @@ def correlation_matrix_plot(n_top_features, df, save=False):
     plt.show()
 
 
-
-
-def error_by_crop(train, actual, model, crop):
-    '''
-    DESC: Creates an actaul v.s predictions plot based on particular crop_type.
-    NOTE: Make sure to reset the X_test index before running this functio
-    INPUT: X_test(array), y_test(array), crop_type(str), model(sklearn-model), pos1(tuple), pos2(tuple)
-    -----
-    OUTPUT: Actual v.s. prediction plot for particular crop_type.
-    '''
-    t = train.reset_index()
-    crop_test = t[t['crop_2017']==crop]
-    crop_ind = list(crop_test.index.values)
-    crop_actual = actual.iloc[crop_ind]
-    crop_test.drop('index', axis=1, inplace=True)
-    crop_predictions = model.predict(crop_test.values)
-    print('Number of Fields with', str(crop) + ' = ', len(crop_predictions))
-    if crop_test.shape[0] > 0:
-        metric_val = regression_evaluation(crop_actual, crop_predictions)
-        print(10*'-')
-        return crop_actual, crop_predictions, metric_val
-
-
-
-
+### Distritbutions Plots
 def predicted_actual_dist(actual, predictions, bins, save=False):
     plt.figure(figsize=(7,7))
     bins = np.linspace(0, 9000, bins)
@@ -794,8 +777,6 @@ def predicted_actual_dist(actual, predictions, bins, save=False):
     if save:
         plt.savefig(save)
     plt.show()
-
-
 
 def histogram2d(actual, predictions, save=False):
     plt.hist2d(actual, predictions)
