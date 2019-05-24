@@ -11,6 +11,26 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_sc
 from matplotlib.colors import LogNorm
 
 
+### Bar_line_duel_plot
+def bar_line_plot(fig, x, y1, y2, label1='y1', label2='y2'):
+    ax = fig.add_subplot(111) # Create matplotlib axes
+    ax2 = ax.twinx() # Create another axes that shares the same x-axis as ax.
+
+    width = 0.3
+    
+    for i, y in enumerate(y1):
+        ax.bar(x,y, color='blue', width=width, label=label1[i]) # create bar plot
+    ax2.plot(x, y2, color='red', marker='o', linestyle='', label=label2) # create line plot
+    
+    # fit trendline
+    x_ind = [t for t in range(len(x))] 
+    z = np.polyfit(x_ind, y2, 1)
+    p = np.poly1d(z)
+    
+    ax2.plot(x_ind,p(x_ind),"r--", label='trendline') # plot trendline
+    return ax, ax2
+
+
 ### ROC
 def roc_curve(y_proba, y_test):
     '''
